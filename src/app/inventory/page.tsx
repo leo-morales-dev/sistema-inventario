@@ -30,7 +30,7 @@ export default function InventoryPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
 
-  // Modales (Solo Editar y Reportar)
+  // Modales (Solo Editar y Reportar, el de XML se fue a otra página)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -66,53 +66,40 @@ export default function InventoryPage() {
   }
 
   // --- LOGICA DE IMPORTACIÓN XML (REDIRECCIÓN) ---
+// --- LOGICA XML (CORREGIDA) ---
   const handleXmlUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.[0]) return;
-    
-    const formData = new FormData();
-    formData.append('file', e.target.files[0]);
+    const formData = new FormData(); formData.append('file', e.target.files[0]);
 
-    // Mostrar loader
-    Swal.fire({ title: 'Analizando Factura...', didOpen: () => Swal.showLoading() });
+    Swal.fire({ title: 'Analizando...', didOpen: () => Swal.showLoading() });
 
     try {
         const res = await fetch('/api/inventory/import/xml', { method: 'POST', body: formData });
         const data = await res.json();
-        
         Swal.close();
 
         if (res.ok) {
             if (data.unmatched && data.unmatched.length > 0) {
-                // CASO 1: PRODUCTOS NUEVOS DETECTADOS -> REDIRIGIR A PÁGINA DE PROCESO
                 const preparedItems = data.unmatched.map((item: any) => ({
                     ...item,
                     action: 'NEW', 
                     newName: item.descripcion,
-                    newCode: item.codigo,
+                    // --- CORRECCIÓN AQUÍ: Código interno inicia vacío ---
+                    newCode: '', 
                     newCategory: 'consumible',
                     newCost: item.valorUnitario || 0,
                     newPrice: (item.valorUnitario || 0) * 1.3 
                 }));
-                
-                // Guardar datos temporalmente para la siguiente página
                 sessionStorage.setItem('pendingXmlItems', JSON.stringify(preparedItems));
-                
-                // Navegar
                 router.push('/inventory/process-invoice');
             } else {
-                // CASO 2: TODOS ERAN CONOCIDOS -> ÉXITO
-                Swal.fire('Éxito', `Factura procesada. ${data.updated} productos actualizados.`, 'success');
+                Swal.fire('Éxito', `Procesado. ${data.updated} actualizados.`, 'success');
                 fetchProducts();
             }
-        } else {
-            Swal.fire('Error', data.error, 'error');
-        }
-    } catch (error) { 
-        Swal.fire('Error', 'Fallo al procesar el archivo XML', 'error'); 
-    }
+        } else { Swal.fire('Error', data.error, 'error'); }
+    } catch (error) { Swal.fire('Error', 'Fallo de conexión', 'error'); }
     
-    setIsImportDropdownOpen(false);
-    if(xmlInputRef.current) xmlInputRef.current.value = '';
+    setIsImportDropdownOpen(false); if(xmlInputRef.current) xmlInputRef.current.value = '';
   };
 
   // --- HANDLERS (Excel, Manual, etc.) ---
@@ -236,6 +223,50 @@ export default function InventoryPage() {
   const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
   const paginate = (pageNumber: number) => setCurrentPage(pageNumber);
 
+  // --- FUNCIÓN DE BORRADO MASIVO ---
+  const handleBulkDelete = async () => {
+    // 1. Personalizar mensaje según el filtro actual
+    let texto = "";
+    switch (activeFilter) {
+        case 'all': texto = "Se eliminarán TODOS los productos del inventario. ¡Esta acción es irreversible!"; break;
+        case 'herramienta': texto = "Se eliminarán TODAS las HERRAMIENTAS. Los consumibles no se tocarán."; break;
+        case 'consumible': texto = "Se eliminarán TODOS los CONSUMIBLES. Las herramientas no se tocarán."; break;
+        case 'low': texto = "Se eliminarán solo los productos con STOCK BAJO (menos de 5 unidades)."; break;
+    }
+
+    // 2. Alerta de confirmación
+    const result = await Swal.fire({
+        title: '¿Estás seguro?',
+        text: texto,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#ef4444', // Rojo
+        cancelButtonColor: '#6b7280', // Gris
+        confirmButtonText: 'Sí, borrar todo',
+        cancelButtonText: 'Cancelar'
+    });
+
+    // 3. Si confirma, ejecutar borrado
+    if (result.isConfirmed) {
+        try {
+            const res = await fetch(`/api/products?filter=${activeFilter}`, {
+                method: 'DELETE'
+            });
+            const data = await res.json();
+
+            if (res.ok) {
+                Swal.fire('Eliminado', `Se eliminaron ${data.count} registros correctamente.`, 'success');
+                fetchProducts(); // Recargar tabla
+                setCurrentPage(1); // Volver a página 1
+            } else {
+                throw new Error(data.error);
+            }
+        } catch (error: any) {
+            Swal.fire('Error', error.message || 'No se pudo eliminar', 'error');
+        }
+    }
+  };
+
   return (
     <div className="bg-gray-50 dark:bg-slate-950 min-h-screen font-sans transition-colors duration-300">
       <Sidebar isOpen={isMobileMenuOpen} closeMobileMenu={() => setIsMobileMenuOpen(false)} />
@@ -355,7 +386,7 @@ export default function InventoryPage() {
                     <div className="flex gap-2 w-full md:w-auto">
                         <button className="flex-1 md:flex-none flex items-center justify-center gap-2 px-3 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors text-xs font-bold shadow-md shadow-orange-500/20"><AlertOctagon size={16} /> Bajas</button>
                         <button className="flex-1 md:flex-none flex items-center justify-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors text-xs font-bold shadow-md shadow-emerald-500/20"><Download size={16} /> Excel</button>
-                        <button className="flex-1 md:flex-none flex items-center justify-center gap-2 px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors text-xs font-bold shadow-md shadow-red-500/20"><Trash2 size={16} /> Borrar</button>
+                        <button onClick={handleBulkDelete} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors text-xs font-bold shadow-md shadow-red-500/20"><Trash2 size={16} /> Borrar</button>
                     </div>
                 </div>
                 <div className="flex flex-col md:flex-row justify-between items-center gap-4">
