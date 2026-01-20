@@ -1,30 +1,38 @@
 import { DataTypes, Model } from 'sequelize';
 import sequelize from '@/lib/db';
-import Product from './Product';
 
 class SupplierCode extends Model {
-  public id!: number;
-  public rfc_proveedor!: string;
-  public codigo_proveedor!: string;
-  public productId!: number;
+  declare id: number;
+  declare rfc_proveedor: string;
+  declare codigo_proveedor: string;
+  declare productId: number;
 }
 
 SupplierCode.init({
   rfc_proveedor: {
     type: DataTypes.STRING,
     allowNull: false
+    // ¡OJO! Aquí NO debe ir unique: true
   },
   codigo_proveedor: {
     type: DataTypes.STRING,
+    allowNull: false
+    // ¡OJO! Aquí TAMPOCO debe ir unique: true
+  },
+  productId: {
+    type: DataTypes.INTEGER,
     allowNull: false
   }
 }, {
   sequelize,
   modelName: 'supplier_code',
+  // ESTA ES LA CLAVE MÁGICA: Hacemos única la PAREJA (RFC + CÓDIGO)
+  indexes: [
+    {
+      unique: true,
+      fields: ['rfc_proveedor', 'codigo_proveedor']
+    }
+  ]
 });
-
-// Definimos las relaciones aquí para asegurar que Sequelize las reconozca
-Product.hasMany(SupplierCode, { foreignKey: 'productId', as: 'ExtraCodes' });
-SupplierCode.belongsTo(Product, { foreignKey: 'productId' });
 
 export default SupplierCode;

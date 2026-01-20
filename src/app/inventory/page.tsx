@@ -67,9 +67,11 @@ export default function InventoryPage() {
 
   // --- LOGICA DE IMPORTACIÓN XML (REDIRECCIÓN) ---
 // --- LOGICA XML (CORREGIDA) ---
+  // --- LÓGICA XML (CORREGIDA: CÓDIGO VACÍO) ---
   const handleXmlUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.[0]) return;
-    const formData = new FormData(); formData.append('file', e.target.files[0]);
+    const formData = new FormData(); 
+    formData.append('file', e.target.files[0]);
 
     Swal.fire({ title: 'Analizando...', didOpen: () => Swal.showLoading() });
 
@@ -84,8 +86,7 @@ export default function InventoryPage() {
                     ...item,
                     action: 'NEW', 
                     newName: item.descripcion,
-                    // --- CORRECCIÓN AQUÍ: Código interno inicia vacío ---
-                    newCode: '', 
+                    newCode: '', // <--- AQUÍ ESTÁ EL CAMBIO: INICIA VACÍO
                     newCategory: 'consumible',
                     newCost: item.valorUnitario || 0,
                     newPrice: (item.valorUnitario || 0) * 1.3 
@@ -99,7 +100,8 @@ export default function InventoryPage() {
         } else { Swal.fire('Error', data.error, 'error'); }
     } catch (error) { Swal.fire('Error', 'Fallo de conexión', 'error'); }
     
-    setIsImportDropdownOpen(false); if(xmlInputRef.current) xmlInputRef.current.value = '';
+    setIsImportDropdownOpen(false); 
+    if(xmlInputRef.current) xmlInputRef.current.value = '';
   };
 
   // --- HANDLERS (Excel, Manual, etc.) ---
